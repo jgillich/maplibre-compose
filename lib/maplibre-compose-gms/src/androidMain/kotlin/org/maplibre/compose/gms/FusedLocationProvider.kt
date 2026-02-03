@@ -4,8 +4,12 @@ import android.Manifest
 import android.content.Context
 import androidx.annotation.RequiresPermission
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.Granularity
@@ -17,10 +21,12 @@ import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import java.util.concurrent.Executors
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.channels.trySendBlocking
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.callbackFlow
@@ -101,8 +107,26 @@ public fun rememberFusedLocationProvider(
   locationRequest: LocationRequest = defaultLocationRequest,
   context: Context = LocalContext.current,
 ): FusedLocationProvider {
+  var isLocationAvailable by remember { mutableStateOf(true) }
   val locationClient =
-    remember(context) { LocationServices.getFusedLocationProviderClient(context) }
+    remember(context, isLocationAvailable) {
+      LocationServices.getFusedLocationProviderClient(context)
+    }
+
+  // fused client does not recover when location is disabled on startup
+  // this effect recreates the client when location comes online for the first time
+  LaunchedEffect(locationClient) {
+    while (!locationClient.locationAvailability.await().isLocationAvailable) {
+      if (isLocationAvailable) {
+        isLocationAvailable = false
+      }
+      delay(1.seconds)
+    }
+    if (!isLocationAvailable) {
+      isLocationAvailable = true
+    }
+  }
+
   return rememberFusedLocationProvider(locationClient, locationRequest)
 }
 
