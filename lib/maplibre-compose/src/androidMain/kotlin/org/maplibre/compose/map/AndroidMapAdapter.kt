@@ -105,9 +105,10 @@ internal class AndroidMapAdapter(
         is BaseStyle.Json -> MlnStyle.Builder().fromJson(style.json)
       }
 
-    map.setStyle(builder) { style ->
+    map.setStyle(builder) { loadedStyle ->
+      if (style != lastBaseStyle) return@setStyle
       logger?.i { "Style finished loading" }
-      callbacks.onStyleChanged(this, AndroidStyle(style, getDensity = { density }))
+      callbacks.onStyleChanged(this, AndroidStyle(loadedStyle, getDensity = { density }))
     }
   }
 
